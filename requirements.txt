@@ -1,0 +1,14 @@
+numpy
+scipy
+scikit-learn
+keras
+chest
+Pillow
+joblib
+jupyter
+pandas
+matplotlib
+seaborn
+bokeh
+tensorflow
+h5py

@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 PACKAGES = [
-    'amazon_product'
+    'amazon_products'
 ]
 
 
@@ -10,11 +10,11 @@ def setup_package():
     setup(
         name="pydata-amazon-products",
         version='0.1.0',
-        description="Code for PyData Talk on 'Classifying Products Based on Images and Text using Keras'."
+        description="Code for PyData Talk on 'Classifying Products Based on Images and Text using Keras'.",
         author='Joshua D. Loyal',
         url='https://github.com/joshloyal/pydata-amazon-products',
         license='MIT',
-        install_requires=['numpy', 'scipy', 'scikit-learn', 'keras'],
+        install_requires=['scikit-learn', 'keras', 'scipy', 'numpy'],
         packages=PACKAGES,
     )
 
