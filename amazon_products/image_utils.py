@@ -34,7 +34,7 @@ def load_image(image_file,
     img = pil_image.open(image_loc).convert('RGB')
 
     if target_size:
-        img = img.resize((target_size[1], target_size[0]))
+        img = img.resize((target_size[1], target_size[0]), pil_image.ANTIALIAS)
 
     if as_image:
         return img
@@ -47,17 +47,23 @@ def load_images(image_files,
                 n_samples=None,
                 target_size=(128, 128),
                 dtype=np.uint8,
+                as_image=False,
+                random_state=123,
                 n_jobs=1):
     if n_samples is not None and n_samples < len(image_files):
-        image_files = sample_images(image_files, n_samples)
+        image_files = sample_images(image_files, n_samples, seed=random_state)
 
     # perform this in parallel with joblib
     images = Parallel(n_jobs=n_jobs)(
                 delayed(load_image)(img,
                                     image_dir=image_dir,
                                     target_size=target_size,
+                                    as_image=as_image,
                                     dtype=dtype)
                 for img in image_files)
+
+    if as_image:
+        return images
 
     return np.vstack(images)
 
@@ -73,80 +79,68 @@ def image_glob(image_directory, ext):
 def load_from_directory(image_directory,
                         n_samples=None,
                         dtype=np.uint8,
-                        n_jobs=1):
+                        as_image=False,
+                        random_state=123,
+                        n_jobs=1,):
     image_files = list(itertools.chain.from_iterable(
         [image_glob(image_directory, ext) for ext in image_extensions]))
     return load_images(image_files,
                        n_samples=n_samples,
                        dtype=dtype,
+                       as_image=as_image,
+                       random_state=random_state,
                        n_jobs=n_jobs)
 
 
-def min_max_scale(data):
-    """Apply a row-wise min-max scaling to an nd-array."""
-    # save the original shape (since will need to reshape later)
-    original_shape = data.shape
-
-    # flatten the array
-    data = data.reshape((data.shape[0], -1))
-
-    # rowwise apply (x - min_x) / max_x
-    pixel_min = np.min(data, axis=1)[:, np.newaxis]
-    pixel_max = np.max(data, axis=1)[:, np.newaxis]
-    data -= pixel_min
-    data /= pixel_max
-
-    return data.reshape(original_shape)
-
-
-def zero_pad(data, target_size):
-    padding_size = target_size ** 2 - data.shape[0]
-    padding = ((0, padding_size),) + ((0, 0),) * (data.ndim - 1)
-    data = np.pad(data, padding, mode='constant',
-                  constant_values=0)
-
-    return data
-
-
-def images_to_sprite(images, as_image=False):
+def images_to_sprite(images):
     """Creates a sprite image along with any necessary padding.
 
     Parameters
     ----------
-    images : array-like of shape [n_samples, width, height, channels]
-        A four dimensional array of images.
-
-    as_image : bool (default=False)
-        Whether to return a PIL image otherwise return a numpy array.
+    images : list
+        A List of PIL Image objects.
 
     Returns
     -------
-    A properly shaped NxWx3 image with any necessary padding.
+    A properly shaped NxWx3 PIL Image with any necessary padding.
     """
-    # apply pixel-wise min/max scaling
-    data = min_max_scale(images)
+    n_samples = len(images)
 
-    # sprite image should be sqrt(n_samples) x sqrt(n_samples)
-    # this means we need to pad the first dimension (the samples)
-    # to make this an even square.
-    target_size = int(np.ceil(np.sqrt(data.shape[0])))
-    data = zero_pad(data, target_size)
+    if n_samples < 1:
+        raise ValueError('Cannot create a sprite image from zero images.')
 
-    # Tile the individual thumbnails into an image
-    data = data.reshape((target_size, target_size) + data.shape[1:]).transpose((0, 2, 1, 3)
-            + tuple(range(4, data.ndim + 1)))
-    data = data.reshape((target_size * data.shape[1],
-                         target_size * data.shape[3]) + data.shape[4:])
-    data = (data * 255).astype(np.uint8)
+    image_width, image_height = images[0].size
 
-    if as_image:
-        return pil_image.fromarray(data)
-    return data
+    # sprite image should be sqrt(n_samples) x sqrt(n_samples). If
+    # n_samples is not a perfect square then we pad with white images.
+    table_size = int(np.ceil(np.sqrt(n_samples)))
+
+    # create the new image. Hard-code the background color to white
+    background_color = (255, 255, 255)
+    sprite_size = (table_size * image_width, table_size * image_height)
+    sprite_image = pil_image.new('RGB', sprite_size, background_color)
+
+    # loop through the images and add them to the sprite image
+    for index, image in enumerate(images):
+        # Determine where we are in the sprite image.
+        row_index = int(index / table_size)
+        column_index = index % table_size
+
+        # determine the bounding box of the image (where it is)
+        left = column_index * image_width
+        right = left + image_width
+        upper = row_index * image_height
+        lower = upper + image_height
+        bounding_box = (left, upper, right, lower)
+
+        sprite_image.paste(image, bounding_box)
+
+    return sprite_image
 
 
 def directory_to_sprites(image_directory,
                          n_samples=None,
-                         as_image=False,
+                         random_state=123,
                          n_jobs=1):
     """Creates a sprite image along with any necessary padding.
 
@@ -162,6 +156,9 @@ def directory_to_sprites(image_directory,
     as_image : bool (default=False)
         Whether to return a PIL image otherwise return a numpy array.
 
+    random_state : int (default=123)
+        The seed to use for the random sampling.
+
     n_jobs : int (default=1)
         The number of parallel workers to use for loading
         the image files.
@@ -174,6 +171,52 @@ def directory_to_sprites(image_directory,
         image_directory,
         n_samples=n_samples,
         dtype=np.float32,
+        as_image=True,
+        random_state=random_state,
         n_jobs=n_jobs)
 
-    return images_to_sprite(images, as_image=as_image)
+    return images_to_sprite(images)
+
+
+def column_to_sprites(image_list,
+                      image_directory='',
+                      n_samples=None,
+                      random_state=123,
+                      n_jobs=1):
+    """Creates a sprite image along with any necessary padding.
+
+    Parameters
+    ----------
+    image_list : list of str
+        Filenames of images
+
+    image_directory : str (default='')
+        The location of the image files on disk.
+
+    n_samples : int (default=None)
+        The number of random sample images to use. If None, then
+        all images are loaded. This can be memory expensive.
+
+    as_image : bool (default=False)
+        Whether to return a PIL image otherwise return a numpy array.
+
+    random_state : int (default=123)
+        The seed to use for the random sampling.
+
+    n_jobs : int (default=1)
+        The number of parallel workers to use for loading
+        the image files.
+
+    Returns
+    -------
+    A properly shaped NxWx3 image with any necessary padding.
+    """
+    images = load_images(
+        image_list,
+        image_dir=image_directory,
+        n_samples=n_samples,
+        as_image=True,
+        random_state=random_state,
+        n_jobs=n_jobs)
+
+    return images_to_sprite(images)
