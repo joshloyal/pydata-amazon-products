@@ -1,4 +1,5 @@
 from amazon_products import image_utils
 from amazon_products import image_features
 from amazon_products import resnet
+from amazon_products import text_generators
 from amazon_products import image_generators
