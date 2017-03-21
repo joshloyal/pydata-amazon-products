@@ -7,12 +7,10 @@ import os
 import functools
 import itertools
 
+import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
 from PIL import Image as pil_image
-
-
-#from .image_features import hsv_features
 
 
 image_extensions = {'jpg', 'jpeg', 'png'}
@@ -245,66 +243,83 @@ def column_to_sprites(image_column,
 
 
 def image_histogram(image_column,
-                    groupby_column,
+                    x_column,
+                    y_column,
                     data,
+                    n_bins=100,
+                    thumbnail_size=50,
                     image_directory='',
                     n_samples=None,
-                    n_jobs=1,
+                    fig_size=(1000, 1000),
                     random_state=123):
-    """Create an image histogram binned by the `groupby_column`.
+    """Create an image histogram binned by the `x_column`.
 
     Parameters
     ----------
     image_column : str
         Name of the column pointing to the image files
 
-    groupby_column : str
-        Name of the column to groupby
+    x_column : str
+        Name of the column bin the x-axis.
+
+    y_column : str
+        Name of the column to sort they values. No sorting is performed
+        if y_column is None.
 
     data : pandas.DataFrame
         The dataframe where both columns are present.
 
+    thumbnail_size : int
+        The size of each image in the histogram.
+
     image_directory : str
         Path to the directory holding the images.
+
+    n_samples : int (default=None)
+        The number of samples do downsample the dataset to.
+
+    fig_size : tuple
+        The (width_px, height_px) of the final image in pixels.
+
+    random_state : int
+        The seed to use for the random number generator.
     """
-    groupby = data.groupby(by=groupby_column)[image_column]
-    height = None
+    data = data.copy()
+    if n_samples is not None and n_samples < len(data):
+        data = data.sample(n_samples, replace=True, random_state=random_state)
 
-    # we need to bin by group then bin within group
-    bins = []
-    for group_name, group_data in groupby:
-        images = load_images(
-            group_data,
-            image_dir=image_directory,
-            n_samples=n_samples,
-            as_image=True,
-            target_size=(50, 50),
-            random_state=random_state,
-            n_jobs=n_jobs)
-        bins.append((group_name, images))
+    data['x_bin'] = pd.cut(data[x_column], n_bins, labels=False)
+    bin_max = data.groupby('x_bin').size().max()
 
-        # keep track of maximum height as well
-        if height is None or len(images) > height:
-            height = len(images)
+    px_w = thumbnail_size * n_bins
+    px_h = thumbnail_size * bin_max
 
-    # get information to actually generate the plot
-    n_bins = len(bins)
-    bar_padding = 5
-    image_size = 50
-    hist_height = (image_size + bar_padding) * height
-    hist_width = (image_size + bar_padding) * n_bins
+    background_color = (50, 50, 50)
+    canvas = pil_image.new('RGB', (px_w, px_h), background_color)
 
-    background_color = (0, 0, 0)  # hard code to black for now
-    hist_size = (hist_width, hist_height)
-    hist_image = pil_image.new('RGB', hist_size, background_color)
+    thumbnail_px = (thumbnail_size, thumbnail_size)
+    bins = list(set(list(data.x_bin)))
 
-    for bin_index, (bin_name, bin_data) in enumerate(bins):
-        y_coord = hist_height
-        x_coord = bin_index * (image_size + bar_padding)
-        for image in bin_data:
-            #image.thumbnail((image_size, image_size), pil_image.ANTIALIAS)
-            hist_image.paste(image, (x_coord, y_coord))
-            y_coord -= (image_size + bar_padding)
+    for item in bins:
+        tmp = data[data.x_bin == item].copy()
 
-    return hist_image
+        # sort y values if present
+        if y_column is not None:
+            tmp.sort_values(by=y_column, ascending=False, inplace=True)
 
+        tmp.reset_index(drop=True, inplace=True)
+
+        y_coord = px_h
+        x_coord = thumbnail_size * item
+
+        for i in range(len(tmp.index)):
+            image_loc = image_path(tmp[image_column].iloc[i], image_directory)
+            thumbnail = pil_image.open(image_loc)
+            thumbnail.thumbnail(thumbnail_px, pil_image.ANTIALIAS)
+            canvas.paste(thumbnail, (x_coord, y_coord))
+            y_coord -= thumbnail_size
+
+    if fig_size:
+        canvas.thumbnail(fig_size, pil_image.ANTIALIAS)
+
+    return canvas
