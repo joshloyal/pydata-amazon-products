@@ -23,6 +23,9 @@ def imagenet_scale(x):
 
 
 def get_cache(cache_dir):
+    """Return the class responsible for feature cacheing. Currently uses
+    Chest.
+    """
     joblib_dump = functools.partial(joblib.dump,
                                     compress=True,
                                     protocol=pickle.HIGHEST_PROTOCOL)
@@ -79,7 +82,8 @@ def extract_resnet50_features(image_list,
                               image_dir='',
                               scale_factor=255.,
                               pooling=None,
-                              batch_size=500):
+                              batch_size=500,
+                              include_top=False):
     """Vectorize images by passing them through the ResNet50 architecture.
 
     The weight's of the ResNet model are pre-trained on ImageNet. The underlying
@@ -108,24 +112,25 @@ def extract_resnet50_features(image_list,
             - `max` means that global max pooling will be applied.
     batch_size : int (default=500)
         The size of the mini-batches to pass through the ResNet architecture.
+    include_top : bool (default=False)
+        Whether to include the top classification layer.
     """
     if pooling not in (None, 'avg', 'max'):
         raise ValueError('Invalid pooling type `{}`.'
                          'Pooling should be `None`, `avg`, or `max`.')
 
-    image_size = 244
+    image_size = 224
     n_channels = 3
-    model = resnet50.ResNet50(include_top=False,
+    model = resnet50.ResNet50(include_top=include_top,
                               weights='imagenet',
                               pooling=pooling,
                               input_shape=(image_size, image_size, n_channels))
 
     datagen = image_generators.ImageListDataGenerator(
-        rescale=(1./scale_factor),
         preprocessing_function=imagenet_scale)
     generator = datagen.flow_from_image_list(image_list, y=None,
                                              image_dir=image_dir,
-                                             target_size=(244, 244),
+                                             target_size=(image_size, image_size),
                                              batch_size=batch_size,
                                              shuffle=False)
 
@@ -162,11 +167,13 @@ class ResNetVectorizer(BaseEstimator, TransformerMixin):
     def __init__(self,
                  pooling=None,
                  batch_size=500,
+                 include_top=False,
                  image_dir='',
                  use_cache=False,
                  cache_dir=None):
         self.pooling = pooling
         self.batch_size = batch_size
+        self.include_top = include_top
         self.image_dir = image_dir
         self.cache_dir = cache_dir
         self.use_cache = use_cache
@@ -178,6 +185,12 @@ class ResNetVectorizer(BaseEstimator, TransformerMixin):
 
     def fit(self, image_files):
         """Currently this is a No-Op."""
+        if self.cache_dir and os.path.exists(self.cache_dir):
+            raise ValueError(
+                'Cache {} already exists! '
+                'If you mean to overwrite this cache, then call '
+                '`clear_cache` before fitting!'.format(self.cache_dir))
+
         return self
 
     def transform(self, image_files):
@@ -198,11 +211,17 @@ class ResNetVectorizer(BaseEstimator, TransformerMixin):
             (cache_indices, cache_files), (image_indices, image_files) = (
                 split_cache_streams(image_files, cache))
 
-            output = np.zeros((n_samples, 2048), dtype=np.float32)
+            if self.include_top:
+                output_shape = (n_samples, 1000)
+            else:
+                output_shape = (n_samples, 2048)
+            output = np.zeros(output_shape, dtype=np.float32)
+
             if image_files:
                 features = extract_resnet50_features(image_files,
                                                      pooling=self.pooling,
                                                      batch_size=self.batch_size,
+                                                     include_top=self.include_top,
                                                      image_dir=self.image_dir)
                 output[image_indices, :] = np.squeeze(features)
 
