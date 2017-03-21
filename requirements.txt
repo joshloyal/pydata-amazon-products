@@ -12,3 +12,4 @@ seaborn==0.7.1
 bokeh==0.12.4
 tensorflow==1.0.1
 h5py==2.6.0
+scikit-image==0.12.3

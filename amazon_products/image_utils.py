@@ -12,6 +12,9 @@ from joblib import Parallel, delayed
 from PIL import Image as pil_image
 
 
+#from .image_features import hsv_features
+
+
 image_extensions = {'jpg', 'jpeg', 'png'}
 
 
@@ -106,6 +109,9 @@ def images_to_sprite(images):
     """
     n_samples = len(images)
 
+    #features = hsv_features(images, background='white', n_jobs=-1)
+    #image_order = np.argsort(features[:, 0])
+
     if n_samples < 1:
         raise ValueError('Cannot create a sprite image from zero images.')
 
@@ -122,6 +128,8 @@ def images_to_sprite(images):
 
     # loop through the images and add them to the sprite image
     for index, image in enumerate(images):
+    #for index, image_index in enumerate(image_order):
+    #    image = images[image_index]
         # Determine where we are in the sprite image.
         row_index = int(index / table_size)
         column_index = index % table_size
@@ -178,7 +186,9 @@ def directory_to_sprites(image_directory,
     return images_to_sprite(images)
 
 
-def column_to_sprites(image_list,
+def column_to_sprites(image_column,
+                      sort_by=None,
+                      data=None,
                       image_directory='',
                       n_samples=None,
                       random_state=123,
@@ -187,8 +197,14 @@ def column_to_sprites(image_list,
 
     Parameters
     ----------
-    image_list : list of str
-        Filenames of images
+    image_column : str
+        Column name corresponding to the images.
+
+    sort_by : str
+        Column to sort by.
+
+    data : pd.DataFrame
+        Pandas dataframe holding the dataset.
 
     image_directory : str (default='')
         The location of the image files on disk.
@@ -211,12 +227,84 @@ def column_to_sprites(image_list,
     -------
     A properly shaped NxWx3 image with any necessary padding.
     """
+    if n_samples is not None and n_samples < len(data):
+        data = data.sample(n=n_samples,
+                           replace=False,
+                           random_state=random_state)
+
+    if sort_by is not None:
+        data = data.sort_values(by=sort_by, ascending=True)
+
     images = load_images(
-        image_list,
+        data[image_column],
         image_dir=image_directory,
-        n_samples=n_samples,
         as_image=True,
-        random_state=random_state,
         n_jobs=n_jobs)
 
     return images_to_sprite(images)
+
+
+def image_histogram(image_column,
+                    groupby_column,
+                    data,
+                    image_directory='',
+                    n_samples=None,
+                    n_jobs=1,
+                    random_state=123):
+    """Create an image histogram binned by the `groupby_column`.
+
+    Parameters
+    ----------
+    image_column : str
+        Name of the column pointing to the image files
+
+    groupby_column : str
+        Name of the column to groupby
+
+    data : pandas.DataFrame
+        The dataframe where both columns are present.
+
+    image_directory : str
+        Path to the directory holding the images.
+    """
+    groupby = data.groupby(by=groupby_column)[image_column]
+    height = None
+
+    # we need to bin by group then bin within group
+    bins = []
+    for group_name, group_data in groupby:
+        images = load_images(
+            group_data,
+            image_dir=image_directory,
+            n_samples=n_samples,
+            as_image=True,
+            target_size=(50, 50),
+            random_state=random_state,
+            n_jobs=n_jobs)
+        bins.append((group_name, images))
+
+        # keep track of maximum height as well
+        if height is None or len(images) > height:
+            height = len(images)
+
+    # get information to actually generate the plot
+    n_bins = len(bins)
+    bar_padding = 5
+    image_size = 50
+    hist_height = (image_size + bar_padding) * height
+    hist_width = (image_size + bar_padding) * n_bins
+
+    background_color = (0, 0, 0)  # hard code to black for now
+    hist_size = (hist_width, hist_height)
+    hist_image = pil_image.new('RGB', hist_size, background_color)
+
+    for bin_index, (bin_name, bin_data) in enumerate(bins):
+        y_coord = hist_height
+        x_coord = bin_index * (image_size + bar_padding)
+        for image in bin_data:
+            #image.thumbnail((image_size, image_size), pil_image.ANTIALIAS)
+            hist_image.paste(image, (x_coord, y_coord))
+            y_coord -= (image_size + bar_padding)
+
+    return hist_image
+
