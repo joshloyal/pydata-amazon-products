@@ -19,6 +19,7 @@ def frequency_plot(text_list,
                    ngram_range=(1,2),
                    max_words=500,
                    plot_n_words=10,
+                   yaxis_label='word',
                    **kwargs):
     """Generate a horizontal bar chart of words ranked by their global
     tf-idf weights in the corpus.
@@ -50,6 +51,7 @@ def frequency_plot(text_list,
                                  max_features=max_words)
     tfidf = vectorizer.fit_transform(text_list)
     global_tfidf = np.asarray(tfidf.sum(axis=0)).flatten()
+    global_tfidf /= np.abs(global_tfidf).max()
 
     # weight word cloud by global idf weights
     vocab = vectorizer.vocabulary_
@@ -58,10 +60,11 @@ def frequency_plot(text_list,
     freq = sorted(freq.items(), key=lambda x: x[1], reverse=True)
 
     word, weight = zip(*freq)
-    data = pd.DataFrame({'word': word, 'tf-idf': weight})
+
+    data = pd.DataFrame({yaxis_label: word, 'tf-idf': weight})
 
     return sns.barplot(
-        'tf-idf', 'word', data=data[:plot_n_words], **kwargs)
+        'tf-idf', yaxis_label, data=data[:plot_n_words], **kwargs)
 
 
 def word_cloud(text_list,
@@ -96,6 +99,7 @@ def word_cloud(text_list,
                                  max_features=max_words)
     tfidf = vectorizer.fit_transform(text_list)
     global_tfidf = np.asarray(tfidf.sum(axis=0)).flatten()
+    global_tfidf /= np.abs(global_tfidf).max()
 
     width, height = fig_size
     word_cloud = wordcloud.WordCloud(width=width, height=height)

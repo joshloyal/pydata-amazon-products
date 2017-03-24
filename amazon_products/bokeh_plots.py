@@ -122,7 +122,8 @@ def hover_tooltip(fig, source, cols=None, name=None):
 def scatter_plot(x, y, data, hue=None,
                  table_column=None, hover_columns=None,
                  title=None, fig=None, name=None, marker='circle',
-                 fig_width=500, fig_height=500, **kwargs):
+                 fig_width=500, fig_height=500,
+                 hide_axes=True, hide_grid=True, **kwargs):
     """Plots an interactive scatter plot of `x` vs `y` using bokeh. Contains
     an additional table that will be filtered based on the selected data.
 
@@ -162,6 +163,14 @@ def scatter_plot(x, y, data, hue=None,
         fig = bokeh.plotting.figure(
             width=fig_width, height=fig_height, tools=tools,
             title=title)
+
+        if hide_axes:
+            fig.xaxis.visible = False
+            fig.yaxis.visible = False
+
+        if hide_grid:
+            fig.xgrid.grid_line_color = None
+            fig.ygrid.grid_line_color = None
 
     # add hue if necessary
     if hue:
