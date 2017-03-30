@@ -4,5 +4,4 @@ from amazon_products import resnet
 from amazon_products import text_generators
 from amazon_products import image_generators
 from amazon_products import text_plots
-from amazon_products import word2vec_plots
 from amazon_products import bokeh_plots
