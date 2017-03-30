@@ -30,17 +30,35 @@ def load_image(image_file,
                target_size=None,
                dtype=np.uint8,
                as_image=False):
-    """Loads an image into PIL format."""
+    """Loads an image from a file on disk. Support formats are
+    `jpg`, `png`, or `gif`.
+
+    Parameters
+    ----------
+    image_file : str
+        The image file on disk.
+    image_dir : str (default='')
+        The directory where the image resides on disk. This string will
+        be appended to the beginning of `image_file`.
+    target_size : tuple (default=None)
+        The target size in pixels. This is a 2-tuple (width, height).
+        If None then no resizing is performed.
+    dtype : numpy dtype (default=np.uint8)
+        The dtype of the output numpy array.
+    as_image : bool (default=False)
+        Whether to return a PIL Image. If True a PIL Image is returned
+        otherwise the output is a numpy array.
+    """
     image_loc = image_path(image_file, image_dir=image_dir)
     img = pil_image.open(image_loc).convert('RGB')
 
     if target_size:
-        img = img.resize((target_size[1], target_size[0]), pil_image.ANTIALIAS)
+        img = img.resize((target_size[1], target_size[0]), pil_image.LANZCOS)
 
     if as_image:
         return img
 
-    return np.expand_dims(np.asarray(img, dtype), 0)
+    return np.asarray(img, dtype)
 
 
 def load_images(image_files,
@@ -66,7 +84,7 @@ def load_images(image_files,
     if as_image:
         return images
 
-    return np.vstack(images)
+    return np.stack(images, axis=0)
 
 
 def image_glob_pattern(image_directory, ext):
@@ -315,12 +333,12 @@ def image_histogram(image_column,
         for i in range(len(tmp.index)):
             image_loc = image_path(tmp[image_column].iloc[i], image_directory)
             thumbnail = pil_image.open(image_loc)
-            thumbnail.thumbnail(thumbnail_px, pil_image.ANTIALIAS)
+            thumbnail.thumbnail(thumbnail_px, pil_image.BICUBIC)
             canvas.paste(thumbnail, (x_coord, y_coord))
             y_coord -= thumbnail_size
 
     if fig_size:
-        canvas.thumbnail(fig_size, pil_image.ANTIALIAS)
+        canvas.thumbnail(fig_size, pil_image.BICUBIC)
 
     return canvas
 
@@ -390,7 +408,7 @@ def image_scatter_plot(image_column,
         image_loc = image_path(data[image_column].iloc[i], image_directory)
         point_img = pil_image.open(image_loc).convert('RGB')
         point_img = point_img.resize(
-            (thumbnail_size, thumbnail_size), pil_image.ANTIALIAS)
+            (thumbnail_size, thumbnail_size), pil_image.LANZCOS)
         point_width, point_height = point_img.size
 
 
