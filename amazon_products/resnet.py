@@ -80,7 +80,6 @@ def write_to_cache(features, image_files, cache):
 
 def extract_resnet50_features(image_list,
                               image_dir='',
-                              scale_factor=255.,
                               pooling=None,
                               batch_size=500,
                               include_top=False):
@@ -99,9 +98,6 @@ def extract_resnet50_features(image_list,
         parameter to specify the full path.
     image_dir : str (default='')
         The directory where the images are located.
-    scale_factor : float (default=255)
-        Value to scale all pixels. For RGB images this should be
-        the maximum value (255) so that all values are between zero and one.
     pooling : str (default=None)
         Optional pooling mode for feature extraction.
             - `None` means that the output of the model will be a 4D output

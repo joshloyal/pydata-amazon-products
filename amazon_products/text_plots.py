@@ -134,13 +134,11 @@ def text_embedding(text_list,
                                  stop_words='english',
                                  sublinear_tf=True,
                                  use_idf=True,
+                                 norm='l2',
                                  max_features=10000)
-    normalizer = Normalizer(copy=False)
-    svd = TruncatedSVD(n_components=n_components, random_state=123)
 
-    lsa = make_pipeline(vectorizer,
-                        normalizer,
-                        svd)
+    svd = TruncatedSVD(n_components=n_components, random_state=123)
+    lsa = make_pipeline(vectorizer, svd)
 
     # fit lsa
     X = lsa.fit_transform(text_list)
