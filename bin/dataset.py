@@ -9,8 +9,8 @@ import urllib.request
 
 
 URL = ("https://s3.amazonaws.com/amazon-products-talk/"
-       "amazon_products_data.tar.gz")
-ARCHIVE_NAME = "amazon_products_data.tar.gz"
+       "amazon_products_data_binary.tar.gz")
+ARCHIVE_NAME = "amazon_products_data_binary.tar.gz"
 DATA_DIR = "amazon_products_data"
 
 
