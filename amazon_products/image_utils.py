@@ -53,7 +53,7 @@ def load_image(image_file,
     img = pil_image.open(image_loc).convert('RGB')
 
     if target_size:
-        img = img.resize((target_size[1], target_size[0]), pil_image.LANZCOS)
+        img = img.resize((target_size[1], target_size[0]), pil_image.LANCZOS)
 
     if as_image:
         return img
@@ -408,7 +408,7 @@ def image_scatter_plot(image_column,
         image_loc = image_path(data[image_column].iloc[i], image_directory)
         point_img = pil_image.open(image_loc).convert('RGB')
         point_img = point_img.resize(
-            (thumbnail_size, thumbnail_size), pil_image.LANZCOS)
+            (thumbnail_size, thumbnail_size), pil_image.LANCZOS)
         point_width, point_height = point_img.size
 
 
